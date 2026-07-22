@@ -45,7 +45,11 @@ module.exports = async function handler(req, res) {
       if (!profile.payg_ready || !profile.stripe_customer_id) {
         return res.status(402).json({ error: { message: 'No saved card — set up pay-as-you-go first.' } });
       }
-      const { data: cfg } = await supabaseAdmin.from('app_config').select('value').eq('key', 'payg_price_cents').maybeSingle();
+      // A live/curated match charges the standard resolution price; an unreviewed
+      // AI-assembled fix (non-live status) charges the separate assemble price.
+      const LIVE_STATUSES = ['PUBLISHED', 'VERIFIED', 'NEEDS_REVIEW'];
+      const priceKey = LIVE_STATUSES.includes(sol.status) ? 'payg_price_cents' : 'assemble_price';
+      const { data: cfg } = await supabaseAdmin.from('app_config').select('value').eq('key', priceKey).maybeSingle();
       priceCents = cfg ? parseInt(cfg.value, 10) : DEFAULT_PRICE_CENTS;
 
       const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
